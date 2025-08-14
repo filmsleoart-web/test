@@ -1,16 +1,35 @@
-// api/ai.js  — Vercel Serverless Function (CommonJS, limpio)
-const ALLOWED_ORIGIN = "filmsleoart.com"; // ← en producción cámbialo a tu dominio WP: "https://tu-dominio.com"
+// api/ai.js — Vercel Serverless Function (CommonJS) con CORS dinámico
+const ALLOWED_ORIGINS = [
+  "https://filmsleoart.com",          // ⇐ pon aquí tu dominio real (con https)
+  "https://www.filmsleoart.com",
+  "http://localhost:3000"               // opcional para pruebas locales
+];
 
-module.exports = async (req, res) => {
-  // CORS
-  res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
+function setCors(req, res) {
+  const origin = req.headers.origin || "";
+  const allow =
+    ALLOWED_ORIGINS.includes(origin) || ALLOWED_ORIGINS.includes("*")
+      ? origin
+      : null;
+
+  // si quieres permitir cualquier origen temporalmente, descomenta la línea de abajo:
+  const allow = "*";
+
+  if (allow) {
+    res.setHeader("Access-Control-Allow-Origin", allow);
+    res.setHeader("Vary", "Origin");
+  }
   res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+}
+
+module.exports = async (req, res) => {
+  setCors(req, res);
 
   // Preflight
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  // Healthcheck (para abrir en el navegador)
+  // Healthcheck
   if (req.method === "GET") {
     return res.status(200).json({ ok: true, message: "AI endpoint online" });
   }
@@ -20,17 +39,14 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const body = req.body || {};
-    const system = body.system || "";
-    const prompt = body.prompt || "";
+    const { system = "", prompt = "" } = req.body || {};
 
-    const key = process.env.OPENAI_API_KEY; // asegúrate del nombre EXACTO en Vercel
+    const key = process.env.OPENAI_API_KEY;
     if (!key) return res.status(500).json({ error: "Missing OPENAI_API_KEY" });
     if (prompt.length < 3) {
       return res.status(400).json({ error: "Prompt too short" });
     }
 
-    // Llamada a OpenAI (Chat Completions)
     const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
