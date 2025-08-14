@@ -1,35 +1,12 @@
-// api/ai.js — Vercel Serverless Function (CommonJS) con CORS dinámico
-const ALLOWED_ORIGINS = [
-  "https://filmsleoart.com",          // ⇐ pon aquí tu dominio real (con https)
-  "https://www.filmsleoart.com",
-  "http://localhost:3000"               // opcional para pruebas locales
-];
-
-function setCors(req, res) {
-  const origin = req.headers.origin || "";
-  const allow =
-    ALLOWED_ORIGINS.includes(origin) || ALLOWED_ORIGINS.includes("*")
-      ? origin
-      : null;
-
-  // si quieres permitir cualquier origen temporalmente, descomenta la línea de abajo:
-  const allow = "*";
-
-  if (allow) {
-    res.setHeader("Access-Control-Allow-Origin", allow);
-    res.setHeader("Vary", "Origin");
-  }
+// api/ai.js — TEMP: open CORS for debugging
+module.exports = async (req, res) => {
+  // CORS (TEMP open) — change to your WP domain later
+  res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-}
 
-module.exports = async (req, res) => {
-  setCors(req, res);
+  if (req.method === "OPTIONS") return res.status(200).end(); // preflight OK
 
-  // Preflight
-  if (req.method === "OPTIONS") return res.status(200).end();
-
-  // Healthcheck
   if (req.method === "GET") {
     return res.status(200).json({ ok: true, message: "AI endpoint online" });
   }
@@ -40,14 +17,11 @@ module.exports = async (req, res) => {
 
   try {
     const { system = "", prompt = "" } = req.body || {};
-
     const key = process.env.OPENAI_API_KEY;
     if (!key) return res.status(500).json({ error: "Missing OPENAI_API_KEY" });
-    if (prompt.length < 3) {
-      return res.status(400).json({ error: "Prompt too short" });
-    }
+    if (prompt.length < 3) return res.status(400).json({ error: "Prompt too short" });
 
-    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+    const openai = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -62,17 +36,13 @@ module.exports = async (req, res) => {
       })
     });
 
-    if (!aiRes.ok) {
-      const text = await aiRes.text();
+    if (!openai.ok) {
+      const text = await openai.text();
       return res.status(500).json({ error: `OpenAI error: ${text}` });
     }
 
-    const data = await aiRes.json();
-    const result =
-      data.choices?.[0]?.message?.content ??
-      data.output_text ??
-      "";
-
+    const data = await openai.json();
+    const result = data.choices?.[0]?.message?.content ?? "";
     return res.status(200).json({ result });
   } catch (err) {
     return res.status(500).json({ error: String(err?.message || err) });
