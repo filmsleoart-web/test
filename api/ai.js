@@ -1,5 +1,5 @@
-// api/ai.js  — Vercel Serverless Function (CommonJS)
-const ALLOWED_ORIGIN = "*"; // cámbialo luego a tu dominio WP
+// api/ai.js  — Vercel Serverless Function (CommonJS, limpio)
+const ALLOWED_ORIGIN = "filmsleoart.com"; // ← en producción cámbialo a tu dominio WP: "https://tu-dominio.com"
 
 module.exports = async (req, res) => {
   // CORS
@@ -7,11 +7,10 @@ module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
+  // Preflight
+  if (req.method === "OPTIONS") return res.status(200).end();
 
-  // GET = healthcheck rápido en el navegador
+  // Healthcheck (para abrir en el navegador)
   if (req.method === "GET") {
     return res.status(200).json({ ok: true, message: "AI endpoint online" });
   }
@@ -21,17 +20,18 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { system, prompt } = req.body || {};
-    const key = process.env.OPENAI_API_KEY;
-    if (!key) {
-      return res.status(500).json({ error: "Missing OPENAI_API_KEY" });
-    }
-    if (!prompt || String(prompt).length < 3) {
+    const body = req.body || {};
+    const system = body.system || "";
+    const prompt = body.prompt || "";
+
+    const key = process.env.OPENAI_API_KEY; // asegúrate del nombre EXACTO en Vercel
+    if (!key) return res.status(500).json({ error: "Missing OPENAI_API_KEY" });
+    if (prompt.length < 3) {
       return res.status(400).json({ error: "Prompt too short" });
     }
 
-    // Llamada mínima a OpenAI (Responses API moderna)
-    const fetchRes = await fetch("https://api.openai.com/v1/chat/completions", {
+    // Llamada a OpenAI (Chat Completions)
+    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -40,22 +40,22 @@ module.exports = async (req, res) => {
       body: JSON.stringify({
         model: "gpt-4o-mini",
         messages: [
-          { role: "system", content: system || "" },
+          { role: "system", content: system },
           { role: "user", content: prompt }
         ]
       })
     });
 
-    if (!fetchRes.ok) {
-      const text = await fetchRes.text();
+    if (!aiRes.ok) {
+      const text = await aiRes.text();
       return res.status(500).json({ error: `OpenAI error: ${text}` });
     }
 
-    const data = await fetchRes.json();
+    const data = await aiRes.json();
     const result =
       data.choices?.[0]?.message?.content ??
       data.output_text ??
-      JSON.stringify(data);
+      "";
 
     return res.status(200).json({ result });
   } catch (err) {
